@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Timetable</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .class-card { transition: all 0.3s ease; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen font-sans p-4 md:p-8">
+
+    <div class="max-w-4xl mx-auto space-y-6">
+        <header class="flex flex-col md:flex-row justify-between items-center bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
+            <div>
+                <h1 class="text-2xl font-bold text-emerald-400">My Interactive Schedule</h1>
+                <p id="current-date-string" class="text-sm text-gray-400 mt-1">Loading date...</p>
+            </div>
+            <div class="text-right mt-4 md:mt-0">
+                <span id="clock" class="text-3xl font-mono font-bold text-emerald-300">00:00:00</span>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-gray-800 p-6 rounded-xl border border-emerald-500/30 shadow-lg relative overflow-hidden">
+                <div class="absolute top-0 right-0 bg-emerald-500 text-gray-950 px-3 py-1 text-xs font-bold uppercase rounded-bl">Now</div>
+                <h2 class="text-sm font-semibold tracking-wider text-gray-400 uppercase">Current Class</h2>
+                <div id="current-class-display" class="mt-4">
+                    </div>
+            </div>
+
+            <div class="bg-gray-800 p-6 rounded-xl border border-blue-500/30 shadow-lg relative overflow-hidden">
+                <div class="absolute top-0 right-0 bg-blue-500 text-white px-3 py-1 text-xs font-bold uppercase rounded-bl">Next</div>
+                <h2 class="text-sm font-semibold tracking-wider text-gray-400 uppercase">Coming Up Next</h2>
+                <div id="next-class-display" class="mt-4">
+                    </div>
+            </div>
+        </div>
+
+        <div class="flex border-b border-gray-700">
+            <button onclick="switchTab('today')" id="tab-today" class="py-2.5 px-4 font-medium text-sm border-b-2 border-emerald-500 text-emerald-400">Today's Schedule</button>
+            <button onclick="switchTab('full')" id="tab-full" class="py-2.5 px-4 font-medium text-sm border-b-2 border-transparent text-gray-400 hover:text-gray-200">Full Timetable</button>
+        </div>
+
+        <div id="view-today" class="space-y-4">
+            <h3 class="text-lg font-medium text-gray-300">Timeline for Today</h3>
+            <div id="today-timeline" class="space-y-3">
+                </div>
+        </div>
+
+        <div id="view-full" class="hidden overflow-x-auto bg-gray-800 p-4 rounded-xl border border-gray-700 shadow-lg">
+            <table class="w-full min-w-[600px] border-collapse text-sm text-center">
+                <thead>
+                    <tr class="text-gray-400 border-b border-gray-700">
+                        <th class="py-3 px-2 text-left">Day</th>
+                        <th class="py-3 px-2">P1<br><span class="text-xs font-normal">08:00</span></th>
+                        <th class="py-3 px-2">P2<br><span class="text-xs font-normal">09:00</span></th>
+                        <th class="py-3 px-2">P3<br><span class="text-xs font-normal">10:00</span></th>
+                        <th class="py-3 px-2">P4<br><span class="text-xs font-normal">11:00</span></th>
+                        <th class="py-3 px-2">P5<br><span class="text-xs font-normal">12:00</span></th>
+                        <th class="py-3 px-2">P6<br><span class="text-xs font-normal">13:00</span></th>
+                    </tr>
+                </thead>
+                <tbody id="full-table-body" class="divide-y divide-gray-700/50">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // 1. HARDCODED TIMETABLE DATA
+        // Periods map exactly to their starting hours
+        const periods = [
+            { id: 'P1', start: 8, end: 9, label: '08:00 - 09:00' },
+            { id: 'P2', start: 9, end: 10, label: '09:00 - 10:00' },
+            { id: 'P3', start: 10, end: 11, label: '10:00 - 11:00' },
+            { id: 'P4', start: 11, end: 12, label: '11:00 - 12:00' },
+            { id: 'P5', start: 12, end: 13, label: '12:00 - 13:00' },
+            { id: 'P6', start: 13, end: 14, label: '13:00 - 14:00' }
+        ];
+
+        const timetable = {
+            'Mon': { P1: { sub: 'CN', room: 'A308' }, P2: { sub: 'SE', room: 'A308' }, P4: { sub: 'DMDW', room: 'A118' } },
+            'Tue': { P1: { sub: 'CN', room: 'A215' }, P2: { sub: 'SE', room: 'A215' }, P3: { sub: 'EE', room: 'A215' }, P4: { sub: 'HPC', room: 'A109' } },
+            'Wed': { P1: { sub: 'SE', room: 'B022' }, P2: { sub: 'CNL', room: 'B212' }, P3: { sub: 'CNL', room: 'B212' }, P4: { sub: 'DAA', room: 'B015' } },
+            'Thu': { P1: { sub: 'DAA', room: 'A115' }, P2: { sub: 'SE', room: 'A115' }, P3: { sub: 'EE', room: 'A115' }, P4: { sub: 'CN', room: 'A115' }, P5: { sub: 'DMDW', room: 'A116' }, P6: { sub: 'HPC', room: 'A107' } },
+            'Fri': { P1: { sub: 'EE', room: 'B020' }, P2: { sub: 'DAAL', room: 'B204' }, P3: { sub: 'DAAL', room: 'B204' }, P4: { sub: 'DAA', room: 'B008' }, P5: { sub: 'HPC', room: 'A108' }, P6: { sub: 'DMDW', room: 'A115' } }
+        };
+
+        const daysFullMap = { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat', 0: 'Sun' };
+
+        // Helper color generator matching your image styling themes
+        function getClassStyles(sub) {
+            if (!sub) return '';
+            if (['CNL', 'DAAL'].includes(sub)) return 'border-blue-500 text-blue-400 bg-blue-950/20'; // Labs
+            if (['DMDW', 'HPC'].includes(sub)) return 'border-amber-500 text-amber-400 bg-amber-950/20'; // Electives/Yellow items
+            return 'border-emerald-500 text-emerald-400 bg-emerald-950/20'; // Default Green classes
+        }
+
+        // 2. CORE ENGINE: TICK & COMPUTE STATUS
+        function updateDashboard() {
+            const now = new Date();
+            
+            // For testing weekend/night hours, uncomment the line below to mimic a Thursday at 11:30 AM:
+            // const now = new Date(2026, 6, 9, 11, 30, 0); 
+
+            const dayIdx = now.getDay();
+            const currentHour = now.getHours();
+            const currentMin = now.getMinutes();
+            const dayKey = daysFullMap[dayIdx];
+
+            // Render Clock Header
+            document.getElementById('clock').innerText = now.toLocaleTimeString();
+            document.getElementById('current-date-string').innerText = now.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+
+            let currentClass = null;
+            let nextClass = null;
+
+            if (timetable[dayKey]) {
+                const daySchedule = timetable[dayKey];
+                
+                // Find current period
+                const activePeriod = periods.find(p => currentHour >= p.start && currentHour < p.end);
+                if (activePeriod && daySchedule[activePeriod.id]) {
+                    currentClass = { ...daySchedule[activePeriod.id], period: activePeriod };
+                }
+
+                // Find next period ahead today
+                const futurePeriods = periods.filter(p => p.start > currentHour);
+                for (let p of futurePeriods) {
+                    if (daySchedule[p.id]) {
+                        nextClass = { ...daySchedule[p.id], period: p };
+                        break; // Get the closest upcoming one
+                    }
+                }
+            }
+
+            // Render Current Box
+            const currentDiv = document.getElementById('current-class-display');
+            if (currentClass) {
+                currentDiv.innerHTML = `
+                    <div class="text-3xl font-extrabold tracking-tight">${currentClass.sub}</div>
+                    <div class="text-emerald-300 font-medium mt-1">Room: ${currentClass.room}</div>
+                    <div class="text-xs text-gray-400 mt-2 font-mono">${currentClass.period.label}</div>
+                `;
+            } else {
+                currentDiv.innerHTML = `<div class="text-gray-500 py-4 italic">No ongoing class right now.</div>`;
+            }
+
+            // Render Next Box
+            const nextDiv = document.getElementById('next-class-display');
+            if (nextClass) {
+                nextDiv.innerHTML = `
+                    <div class="text-2xl font-bold tracking-tight text-gray-200">${nextClass.sub}</div>
+                    <div class="text-blue-300 font-medium mt-1">Room: ${nextClass.room}</div>
+                    <div class="text-xs text-gray-400 mt-2 font-mono">${nextClass.period.label}</div>
+                `;
+            } else {
+                nextDiv.innerHTML = `<div class="text-gray-500 py-4 italic">No more classes scheduled today! 🎉</div>`;
+            }
+
+            // Render Today's Detailed Timeline
+            renderTodayTimeline(dayKey, currentHour);
+        }
+
+        // 3. RENDER VIEWS
+        function renderTodayTimeline(dayKey, currentHour) {
+            const container = document.getElementById('today-timeline');
+            if (!timetable[dayKey]) {
+                container.innerHTML = `<div class="bg-gray-800 p-6 text-center text-gray-400 rounded-xl">It's the weekend! No classes scheduled today. Enjoy your break!</div>`;
+                return;
+            }
+
+            let html = '';
+            periods.forEach(p => {
+                const classData = timetable[dayKey][p.id];
+                const isCurrent = currentHour >= p.start && currentHour < p.end;
+                
+                if (classData) {
+                    const customColors = getClassStyles(classData.sub);
+                    html += `
+                        <div class="flex items-center bg-gray-800 p-4 rounded-xl border ${isCurrent ? 'border-emerald-400 ring-1 ring-emerald-400' : 'border-gray-700'} transition-all">
+                            <div class="w-24 font-mono text-xs text-gray-400 shrink-0">${p.label}</div>
+                            <div class="ml-4 flex-1">
+                                <div class="font-bold text-base ${isCurrent ? 'text-emerald-400' : 'text-gray-200'}">${classData.sub}</div>
+                                <div class="text-xs text-gray-400">Room ${classData.room}</div>
+                            </div>
+                            ${isCurrent ? '<span class="text-xs bg-emerald-500 text-gray-950 font-bold px-2 py-0.5 rounded-full animate-pulse">LIVE</span>' : ''}
+                        </div>
+                    `;
+                }
+            });
+            container.innerHTML = html;
+        }
+
+        function renderFullGrid() {
+            const tbody = document.getElementById('full-table-body');
+            let html = '';
+
+            Object.keys(timetable).forEach(day => {
+                html += `<tr class="hover:bg-gray-750/40">
+                    <td class="py-4 px-2 font-bold text-left text-gray-300 border-r border-gray-700/50">${day}</td>`;
+                
+                periods.forEach(p => {
+                    const slot = timetable[day][p.id];
+                    if (slot) {
+                        const styleClass = getClassStyles(slot.sub);
+                        html += `
+                            <td class="p-2">
+                                <div class="border rounded-lg p-2 ${styleClass} text-xs font-semibold shadow-sm">
+                                    <div class="font-bold tracking-wide">${slot.sub}</div>
+                                    <div class="opacity-80 text-[10px] mt-0.5 font-mono">${slot.room}</div>
+                                </div>
+                            </td>`;
+                    } else {
+                        html += `<td class="p-2 text-gray-600">-</td>`;
+                    }
+                });
+                html += `</tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        // 4. INTERACTION TABS
+        function switchTab(view) {
+            const todayBtn = document.getElementById('tab-today');
+            const fullBtn = document.getElementById('tab-full');
+            const todayView = document.getElementById('view-today');
+            const fullView = document.getElementById('view-full');
+
+            if (view === 'today') {
+                todayView.classList.remove('hidden');
+                fullView.classList.add('hidden');
+                todayBtn.className = "py-2.5 px-4 font-medium text-sm border-b-2 border-emerald-500 text-emerald-400";
+                fullBtn.className = "py-2.5 px-4 font-medium text-sm border-b-2 border-transparent text-gray-400 hover:text-gray-200";
+            } else {
+                todayView.classList.add('hidden');
+                fullView.classList.remove('hidden');
+                fullBtn.className = "py-2.5 px-4 font-medium text-sm border-b-2 border-emerald-500 text-emerald-400";
+                todayBtn.className = "py-2.5 px-4 font-medium text-sm border-b-2 border-transparent text-gray-400 hover:text-gray-200";
+            }
+        }
+
+        // 5. APP INITIALIZATION
+        renderFullGrid();
+        updateDashboard();
+        setInterval(updateDashboard, 1000); // Live loop updates clock & shifts classes in real-time
+    </script>
+</body>
+</html>
